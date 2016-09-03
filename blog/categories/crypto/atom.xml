@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: Crypto | Random code]]></title>
+  <link href="http://jagg.github.io/blog/categories/crypto/atom.xml" rel="self"/>
+  <link href="http://jagg.github.io/"/>
+  <updated>2016-09-03T14:51:29+01:00</updated>
+  <id>http://jagg.github.io/</id>
+  <author>
+    <name><![CDATA[Jose A. Garcia]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Encrypting Like It's 1553]]></title>
+    <link href="http://jagg.github.io/blog/2016/09/03/encrypting-like-its-1553/"/>
+    <updated>2016-09-03T16:46:54+01:00</updated>
+    <id>http://jagg.github.io/blog/2016/09/03/encrypting-like-its-1553</id>
+    <content type="html"><![CDATA[<h2>The set up</h2>
+
+<p>Italy, 1553, a book is published: La Cifra del Sig. Giovan Battista Bellaso. The book describes a
+new cipher consisting on a table of character substitutions that, with the help of a previously
+agreed key, could be used to encrypt a text.</p>
+
+<p>This system is one of the simplest members of the family of polyalphabetic ciphers (the same family
+as the Enigma machine) and has been reinvented many times over the centuries. At some point during
+the 19th century it was misattributed to Blaise de Vigenère, a contemporary cryptographer who
+invented a similar, stronger cipher. Thanks to this Bellaso&rsquo;s method is more commonly known as
+the Vigenère cipher.</p>
+
+<p>Even when this cipher wasn&rsquo;s as strong as the one really invented by Vigenère, it did quite well
+for the next three centuries. During this time it was considered unbreakable until a method able to
+decipher it was published in 1863.</p>
+
+<h2>The problem</h2>
+
+<p>Times have changed and we don&rsquo;t have to use a table to encrypt each character by hand in our
+messages before sending them, we can just use a computer to do all the hard work for us.</p>
+
+<p>The way to translate this cipher to our world of ones an zeros is quite simple. You choose a key of
+size <code>n</code>, let&rsquo;s say &ldquo;KEY&rdquo;, and using its binary representation (e.g. ASCII) just apply XOR<sup id="fnref:1"><a href="#fn:1" rel="footnote">1</a></sup>
+operations repeteadly between each group of <code>n</code> characters in our message and the key.</p>
+
+<p>Decoding it it&rsquo;s just as easy. Literally just as easy, just apply the same XOR operations as
+before over the cipher text and you get the original message!</p>
+
+<p>Note that in the same way we can use computers to encrypt text easily following this cipher, they
+can also be used to break it. The Vigenère can be broken easly if the difference between the size
+of the encrypted text and the key is big.</p>
+
+<h2>The code</h2>
+
+<p>I&rsquo;m currently learning Rust and this looks like an oportunity to play with it and see how it goes,
+so let&rsquo;s see how we can model this in a more or less idiomatic way.</p>
+
+<p>Our inputs and outputs are always going to be strings but internally we want to operate directly
+with arrays of bytes. Also, we can leverage the type system a bit and create different types for
+plain and encrypted text. With this in mind we can start with these structs:</p>
+
+<pre><code class="rust">pub struct CipherText(Vec&lt;u8&gt;);
+pub struct PlainText(Vec&lt;u8&gt;);
+</code></pre>
+
+<p>Also, chances are that once the plain text is encrypted it will not be valid UTF-8, so we need a
+different representation for those bytes. Luckily we have all we need in the
+<a href="https://github.com/rust-lang-nursery/rustc-serialize">rustc_serialize</a> crate, it comes with some
+traits to encode and decode byte slices (&amp;[u8]) as Hexadecimal or Base64 (<code>ToHex</code>, <code>FromHex</code>,
+<code>ToBase64</code> and <code>FromBase64</code>). Also, since our types are just wrappers on top of a Vec<u8> it seems
+we could even derive these traits automatically, but this is not available in stable rust, so in
+this case we can just implement some utility methods ourselves and make them return our own
+custom Error type to make dealing with error conditions easier down the line.</p>
+
+<p>So, we can implement <code>from</code> and <code>to</code> methods for our external representations (UTF-8, Hexadecimal
+and Base64). You can see the Base64 methods for CipherText here:</p>
+
+<pre><code class="rust">impl CipherText {
+  pub fn from_b64(b64: &amp;str) -&gt; Result&lt;CipherText, Error&gt; {
+    let cipher_bytes: Vec&lt;u8&gt; = try!(b64.from_base64()
+        .map_err(|e| Error::Base64(e.to_string())));
+    Ok(CipherText(cipher_bytes))
+  }
+
+  pub fn to_b64(&amp;self) -&gt; String {
+    let &amp;CipherText(ref vec_bytes) = self;
+    vec_bytes.to_base64(STANDARD)
+  }
+}
+</code></pre>
+
+<p>We can also specify the different kind of errors we can deal with in our custom error type:</p>
+
+<pre><code class="rust">#[derive(Debug)]
+pub enum Error {
+  Hex(String),
+  Base64(String),
+  UTF8(String),
+}
+</code></pre>
+
+<p>Ok, now we can deal with our plain and cipher text without having to worry about in which format
+they were, we just import them using the appropriate method and then we can forget about it!</p>
+
+<p>So now we just need to do something with them, we want to be able to encrypt and decrypt text using
+a key. As we said before both operations are identical for this cipher, we just apply a binary XOR
+between the text and our key as many times as necessary to fit the full input<sup id="fnref:2"><a href="#fn:2" rel="footnote">2</a></sup>.</p>
+
+<pre><code class="rust">fn repeating_xor(input: &amp;[u8], key: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+    let mut out: Vec&lt;u8&gt; = Vec::with_capacity(input.len());
+    unsafe {
+        out.set_len(input.len());
+    }
+    for (i, in_val) in input.iter().enumerate() {
+        out[i] = in_val ^ key[i % key.len()];
+    }
+    out
+}
+</code></pre>
+
+<p>Now we have all the pieces, we can implement our encrypt and decrypt methods:</p>
+
+<pre><code class="rust">pub fr encrypt(text: &amp;PlainText, key: &amp;str) -&gt; CipherText {
+  let &amp;PlainText(ref bytes) = text;
+  let xored: Vec&lt;u8&gt; = repeating_xor(bytes, key.as_bytes());
+  CipherText::new(&amp;xored)
+}
+
+pub fn decrypt(cipher_text: &amp;CipherText, key: &amp;str) -&gt; Result&lt;PlainText, Error&gt; {
+  let &amp;CipherText(ref bytes) = cipher_text;
+  let xored: Vec&lt;u8&gt; = repeating_xor(bytes, key.as_bytes());
+  Ok(PlainText::from_bytes(&amp;xored))
+}
+</code></pre>
+
+<p>We should also write some tests to verify that our code actually works. We can take some text,
+encrypt it and check if the text stays the same when we decrypt it:</p>
+
+<pre><code class="rust">fn check_text(text: &amp;str) {
+  let plain_text = PlainText::from_string(text);
+  let key: &amp;str = "toy";
+  let decoded_text = decrypt(&amp;encrypt(&amp;plain_text, key), key).unwrap();
+  assert_eq!(text, decoded_text.to_utf8().unwrap());
+}
+
+#[test]
+fn test_encrypt_and_decrypt() {
+  check_text("This is the plain text\n");
+  check_text("123, 456");
+  check_text("!£$%^&amp;*@~:");
+  check_text("日本語");
+}
+</code></pre>
+
+<h2>Closing thoughts</h2>
+
+<p>Now we have a very simple program that does something sort of useful, we can extend it to read and
+write from files and create a simple command line interface to send secret messages in a completely
+unsecure way!</p>
+
+<p>The idea behind all this was to write some simple, self contained program in Rust to understand
+how it works. In this case we haven&rsquo;t come across anything complicated, the ownership rules were
+evident and we didn&rsquo;t have any lifetime issues so we&rsquo;ll have to pick something more complicated
+next time to play with those things.</p>
+
+<p>Also I haven&rsquo;t tried debugging, profiling or benchmarking yet, all critical things for any serious
+production work so I still have plenty to investigate and maybe write about in my next post.</p>
+
+<p>You can find the full source for this post in my <a href="https://github.com/jagg/vigenere">github account</a>.</p>
+<div class="footnotes">
+<hr/>
+<ol>
+<li id="fn:1">
+<p>This is really an XOR cipher, another substitution cipher with similar security. It&rsquo;s the same concept but it operates with bits instead of characters.<a href="#fnref:1" rev="footnote">&#8617;</a></p></li>
+<li id="fn:2">
+<p>Note that if the key and the text have the same size we only have to do it once, that is called a One Time Pad and if our key was copletely random this cipher would be theoretically unbreakable!<a href="#fnref:2" rev="footnote">&#8617;</a></p></li>
+</ol>
+</div>
+
+]]></content>
+  </entry>
+  
+</feed>
