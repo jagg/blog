@@ -5,7 +5,7 @@
 <!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
 <head>
   <meta charset="utf-8">
-  <title>Random code</title>
+  <title>Breaking the Vigenère Cipher - Random code</title>
   <meta name="author" content="Jose A. Garcia">
 
   
@@ -20,7 +20,7 @@ cipher doesn&rsquo &hellip;">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   
-  <link rel="canonical" href="http://jagg.github.io/">
+  <link rel="canonical" href="http://jagg.github.io/blog/2016/09/14/breaking-the-vigenere-cipher/">
   <link href="/favicon.png" rel="icon">
   <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
   <link href="/atom.xml" rel="alternate" title="Random code" type="application/atom+xml">
@@ -65,15 +65,12 @@ cipher doesn&rsquo &hellip;">
 </nav>
   <div id="main">
     <div id="content">
-      <div class="blog-index">
+      <div>
+<article class="hentry" role="article">
   
-  
-  
-    <article>
-      
   <header>
     
-      <h1 class="entry-title"><a href="/blog/2016/09/14/breaking-the-vigenere-cipher/">Breaking the Vigenère Cipher</a></h1>
+      <h1 class="entry-title">Breaking the Vigenère Cipher</h1>
     
     
       <p class="meta">
@@ -89,7 +86,7 @@ cipher doesn&rsquo &hellip;">
   </header>
 
 
-  <div class="entry-content"><p>In my <a href="https://jagg.github.io/blog/2016/09/03/encrypting-like-its-1553/">previous post</a> I explained
+<div class="entry-content"><p>In my <a href="https://jagg.github.io/blog/2016/09/03/encrypting-like-its-1553/">previous post</a> I explained
 how the Vigenère cipher works and how to implement it in Rust. I also mentioned that nowadays this
 cipher doesn&rsquo;t offer any security, since it can be easly broken with the help of a computer. Well,
 that is exactly what we are going to do now.</p>
@@ -500,266 +497,52 @@ we find them.</p>
 
 <p>Just like last time, you can find the full source for this post in my <a href="https://github.com/jagg/vigenere">github account</a>.</p>
 </div>
-  
-  
 
 
-    </article>
-  
-  
-    <article>
+  <footer>
+    <p class="meta">
       
-  <header>
-    
-      <h1 class="entry-title"><a href="/blog/2016/09/03/encrypting-like-its-1553/">Encrypting Like It's 1553</a></h1>
-    
-    
-      <p class="meta">
-        
-
-
-
-
-<time class='entry-date' datetime='2016-09-03T16:46:54+01:00'><span class='date'><span class='date-month'>Sep</span> <span class='date-day'>3</span><span class='date-suffix'>rd</span>, <span class='date-year'>2016</span></span> <span class='time'>4:46 pm</span></time>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><h2>The set up</h2>
-
-<p>Italy, 1553, a book is published: La Cifra del Sig. Giovan Battista Bellaso. The book describes a
-new cipher consisting on a table of character substitutions that, with the help of a previously
-agreed key, could be used to encrypt a text.</p>
-
-<p>This system is one of the simplest members of the family of polyalphabetic ciphers (the same family
-as the Enigma machine) and has been reinvented many times over the centuries. At some point during
-the 19th century it was misattributed to Blaise de Vigenère, a contemporary cryptographer who
-invented a similar, stronger cipher. Thanks to this Bellaso&rsquo;s method is more commonly known as
-the Vigenère cipher.</p>
-
-<p>Even when this cipher wasn&rsquo;s as strong as the one really invented by Vigenère, it did quite well
-for the next three centuries. During this time it was considered unbreakable until a method able to
-decipher it was published in 1863.</p>
-
-<h2>The problem</h2>
-
-<p>Times have changed and we don&rsquo;t have to use a table to encrypt each character by hand in our
-messages before sending them, we can just use a computer to do all the hard work for us.</p>
-
-<p>The way to translate this cipher to our world of ones an zeros is quite simple. You choose a key of
-size <code>n</code>, let&rsquo;s say &ldquo;KEY&rdquo;, and using its binary representation (e.g. ASCII) just apply XOR<sup id="fnref:1"><a href="#fn:1" rel="footnote">1</a></sup>
-operations repeteadly between each group of <code>n</code> characters in our message and the key.</p>
-
-<p>Decoding it it&rsquo;s just as easy. Literally just as easy, just apply the same XOR operations as
-before over the cipher text and you get the original message!</p>
-
-<p>Note that in the same way we can use computers to encrypt text easily following this cipher, they
-can also be used to break it. The Vigenère can be broken easly if the difference between the size
-of the encrypted text and the key is big.</p>
-
-<h2>The code</h2>
-
-<p>I&rsquo;m currently learning Rust and this looks like an oportunity to play with it and see how it goes,
-so let&rsquo;s see how we can model this in a more or less idiomatic way.</p>
-
-<p>Our inputs and outputs are always going to be strings but internally we want to operate directly
-with arrays of bytes. Also, we can leverage the type system a bit and create different types for
-plain and encrypted text. With this in mind we can start with these structs:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class='rust'><span class='line'><span class="k">pub</span> <span class="k">struct</span> <span class="n">CipherText</span><span class="p">(</span><span class="n">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span><span class="p">);</span>
-</span><span class='line'><span class="k">pub</span> <span class="k">struct</span> <span class="n">PlainText</span><span class="p">(</span><span class="n">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span><span class="p">);</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Also, chances are that once the plain text is encrypted it will not be valid UTF-8, so we need a
-different representation for those bytes. Luckily we have all we need in the
-<a href="https://github.com/rust-lang-nursery/rustc-serialize">rustc_serialize</a> crate, it comes with some
-traits to encode and decode byte slices (&amp;[u8]) as Hexadecimal or Base64 (<code>ToHex</code>, <code>FromHex</code>,
-<code>ToBase64</code> and <code>FromBase64</code>). Also, since our types are just wrappers on top of a Vec<u8> it seems
-we could even derive these traits automatically, but this is not available in stable rust, so in
-this case we can just implement some utility methods ourselves and make them return our own
-custom Error type to make dealing with error conditions easier down the line.</p>
-
-<p>So, we can implement <code>from</code> and <code>to</code> methods for our external representations (UTF-8, Hexadecimal
-and Base64). You can see the Base64 methods for CipherText here:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-<span class='line-number'>12</span>
-</pre></td><td class='code'><pre><code class='rust'><span class='line'><span class="k">impl</span> <span class="n">CipherText</span> <span class="p">{</span>
-</span><span class='line'>  <span class="k">pub</span> <span class="k">fn</span> <span class="n">from_b64</span><span class="p">(</span><span class="n">b64</span><span class="o">:</span> <span class="o">&amp;</span><span class="kt">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">Result</span><span class="o">&lt;</span><span class="n">CipherText</span><span class="p">,</span> <span class="n">Error</span><span class="o">&gt;</span> <span class="p">{</span>
-</span><span class='line'>    <span class="kd">let</span> <span class="n">cipher_bytes</span><span class="o">:</span> <span class="n">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span> <span class="o">=</span> <span class="n">try</span><span class="o">!</span><span class="p">(</span><span class="n">b64</span><span class="p">.</span><span class="n">from_base64</span><span class="p">()</span>
-</span><span class='line'>        <span class="p">.</span><span class="n">map_err</span><span class="p">(</span><span class="o">|</span><span class="n">e</span><span class="o">|</span> <span class="n">Error</span><span class="o">::</span><span class="n">Base64</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">to_string</span><span class="p">())));</span>
-</span><span class='line'>    <span class="nb">Ok</span><span class="p">(</span><span class="n">CipherText</span><span class="p">(</span><span class="n">cipher_bytes</span><span class="p">))</span>
-</span><span class='line'>  <span class="p">}</span>
-</span><span class='line'>
-</span><span class='line'>  <span class="k">pub</span> <span class="k">fn</span> <span class="n">to_b64</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">String</span> <span class="p">{</span>
-</span><span class='line'>    <span class="kd">let</span> <span class="o">&amp;</span><span class="n">CipherText</span><span class="p">(</span><span class="k">ref</span> <span class="n">vec_bytes</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="p">;</span>
-</span><span class='line'>    <span class="n">vec_bytes</span><span class="p">.</span><span class="n">to_base64</span><span class="p">(</span><span class="n">STANDARD</span><span class="p">)</span>
-</span><span class='line'>  <span class="p">}</span>
-</span><span class='line'><span class="p">}</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>We can also specify the different kind of errors we can deal with in our custom error type:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class='rust'><span class='line'><span class="cp">#[derive(Debug)]</span>
-</span><span class='line'><span class="k">pub</span> <span class="k">enum</span> <span class="n">Error</span> <span class="p">{</span>
-</span><span class='line'>  <span class="n">Hex</span><span class="p">(</span><span class="n">String</span><span class="p">),</span>
-</span><span class='line'>  <span class="n">Base64</span><span class="p">(</span><span class="n">String</span><span class="p">),</span>
-</span><span class='line'>  <span class="n">UTF8</span><span class="p">(</span><span class="n">String</span><span class="p">),</span>
-</span><span class='line'><span class="p">}</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Ok, now we can deal with our plain and cipher text without having to worry about in which format
-they were, we just import them using the appropriate method and then we can forget about it!</p>
-
-<p>So now we just need to do something with them, we want to be able to encrypt and decrypt text using
-a key. As we said before both operations are identical for this cipher, we just apply a binary XOR
-between the text and our key as many times as necessary to fit the full input<sup id="fnref:2"><a href="#fn:2" rel="footnote">2</a></sup>.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-</pre></td><td class='code'><pre><code class='rust'><span class='line'><span class="k">fn</span> <span class="n">repeating_xor</span><span class="p">(</span><span class="n">input</span><span class="o">:</span> <span class="o">&amp;</span><span class="p">[</span><span class="kt">u8</span><span class="p">],</span> <span class="n">key</span><span class="o">:</span> <span class="o">&amp;</span><span class="p">[</span><span class="kt">u8</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span> <span class="p">{</span>
-</span><span class='line'>    <span class="kd">let</span> <span class="k">mut</span> <span class="n">out</span><span class="o">:</span> <span class="n">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span> <span class="o">=</span> <span class="n">Vec</span><span class="o">::</span><span class="n">with_capacity</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">len</span><span class="p">());</span>
-</span><span class='line'>    <span class="k">unsafe</span> <span class="p">{</span>
-</span><span class='line'>        <span class="n">out</span><span class="p">.</span><span class="n">set_len</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">len</span><span class="p">());</span>
-</span><span class='line'>    <span class="p">}</span>
-</span><span class='line'>    <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">in_val</span><span class="p">)</span> <span class="k">in</span> <span class="n">input</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">enumerate</span><span class="p">()</span> <span class="p">{</span>
-</span><span class='line'>        <span class="n">out</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">in_val</span> <span class="o">^</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">key</span><span class="p">.</span><span class="n">len</span><span class="p">()];</span>
-</span><span class='line'>    <span class="p">}</span>
-</span><span class='line'>    <span class="n">out</span>
-</span><span class='line'><span class="p">}</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Now we have all the pieces, we can implement our encrypt and decrypt methods:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-</pre></td><td class='code'><pre><code class='rust'><span class='line'><span class="k">pub</span> <span class="n">fr</span> <span class="n">encrypt</span><span class="p">(</span><span class="n">text</span><span class="o">:</span> <span class="o">&amp;</span><span class="n">PlainText</span><span class="p">,</span> <span class="n">key</span><span class="o">:</span> <span class="o">&amp;</span><span class="kt">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CipherText</span> <span class="p">{</span>
-</span><span class='line'>  <span class="kd">let</span> <span class="o">&amp;</span><span class="n">PlainText</span><span class="p">(</span><span class="k">ref</span> <span class="n">bytes</span><span class="p">)</span> <span class="o">=</span> <span class="n">text</span><span class="p">;</span>
-</span><span class='line'>  <span class="kd">let</span> <span class="n">xored</span><span class="o">:</span> <span class="n">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span> <span class="o">=</span> <span class="n">repeating_xor</span><span class="p">(</span><span class="n">bytes</span><span class="p">,</span> <span class="n">key</span><span class="p">.</span><span class="n">as_bytes</span><span class="p">());</span>
-</span><span class='line'>  <span class="n">CipherText</span><span class="o">::</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xored</span><span class="p">)</span>
-</span><span class='line'><span class="p">}</span>
-</span><span class='line'>
-</span><span class='line'><span class="k">pub</span> <span class="k">fn</span> <span class="n">decrypt</span><span class="p">(</span><span class="n">cipher_text</span><span class="o">:</span> <span class="o">&amp;</span><span class="n">CipherText</span><span class="p">,</span> <span class="n">key</span><span class="o">:</span> <span class="o">&amp;</span><span class="kt">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">Result</span><span class="o">&lt;</span><span class="n">PlainText</span><span class="p">,</span> <span class="n">Error</span><span class="o">&gt;</span> <span class="p">{</span>
-</span><span class='line'>  <span class="kd">let</span> <span class="o">&amp;</span><span class="n">CipherText</span><span class="p">(</span><span class="k">ref</span> <span class="n">bytes</span><span class="p">)</span> <span class="o">=</span> <span class="n">cipher_text</span><span class="p">;</span>
-</span><span class='line'>  <span class="kd">let</span> <span class="n">xored</span><span class="o">:</span> <span class="n">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span> <span class="o">=</span> <span class="n">repeating_xor</span><span class="p">(</span><span class="n">bytes</span><span class="p">,</span> <span class="n">key</span><span class="p">.</span><span class="n">as_bytes</span><span class="p">());</span>
-</span><span class='line'>  <span class="nb">Ok</span><span class="p">(</span><span class="n">PlainText</span><span class="o">::</span><span class="n">from_bytes</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xored</span><span class="p">))</span>
-</span><span class='line'><span class="p">}</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>We should also write some tests to verify that our code actually works. We can take some text,
-encrypt it and check if the text stays the same when we decrypt it:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-<span class='line-number'>12</span>
-<span class='line-number'>13</span>
-<span class='line-number'>14</span>
-</pre></td><td class='code'><pre><code class='rust'><span class='line'><span class="k">fn</span> <span class="n">check_text</span><span class="p">(</span><span class="n">text</span><span class="o">:</span> <span class="o">&amp;</span><span class="kt">str</span><span class="p">)</span> <span class="p">{</span>
-</span><span class='line'>  <span class="kd">let</span> <span class="n">plain_text</span> <span class="o">=</span> <span class="n">PlainText</span><span class="o">::</span><span class="n">from_string</span><span class="p">(</span><span class="n">text</span><span class="p">);</span>
-</span><span class='line'>  <span class="kd">let</span> <span class="n">key</span><span class="o">:</span> <span class="o">&amp;</span><span class="kt">str</span> <span class="o">=</span> <span class="s">&quot;toy&quot;</span><span class="p">;</span>
-</span><span class='line'>  <span class="kd">let</span> <span class="n">decoded_text</span> <span class="o">=</span> <span class="n">decrypt</span><span class="p">(</span><span class="o">&amp;</span><span class="n">encrypt</span><span class="p">(</span><span class="o">&amp;</span><span class="n">plain_text</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">key</span><span class="p">).</span><span class="n">unwrap</span><span class="p">();</span>
-</span><span class='line'>  <span class="n">assert_eq</span><span class="o">!</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">decoded_text</span><span class="p">.</span><span class="n">to_utf8</span><span class="p">().</span><span class="n">unwrap</span><span class="p">());</span>
-</span><span class='line'><span class="p">}</span>
-</span><span class='line'>
-</span><span class='line'><span class="cp">#[test]</span>
-</span><span class='line'><span class="k">fn</span> <span class="n">test_encrypt_and_decrypt</span><span class="p">()</span> <span class="p">{</span>
-</span><span class='line'>  <span class="n">check_text</span><span class="p">(</span><span class="s">&quot;This is the plain text</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
-</span><span class='line'>  <span class="n">check_text</span><span class="p">(</span><span class="s">&quot;123, 456&quot;</span><span class="p">);</span>
-</span><span class='line'>  <span class="n">check_text</span><span class="p">(</span><span class="s">&quot;!£$%^&amp;*@~:&quot;</span><span class="p">);</span>
-</span><span class='line'>  <span class="n">check_text</span><span class="p">(</span><span class="s">&quot;日本語&quot;</span><span class="p">);</span>
-</span><span class='line'><span class="p">}</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<h2>Closing thoughts</h2>
-
-<p>Now we have a very simple program that does something sort of useful, we can extend it to read and
-write from files and create a simple command line interface to send secret messages in a completely
-unsecure way!</p>
-
-<p>The idea behind all this was to write some simple, self contained program in Rust to understand
-how it works. In this case we haven&rsquo;t come across anything complicated, the ownership rules were
-evident and we didn&rsquo;t have any lifetime issues so we&rsquo;ll have to pick something more complicated
-next time to play with those things.</p>
-
-<p>Also I haven&rsquo;t tried debugging, profiling or benchmarking yet, all critical things for any serious
-production work so I still have plenty to investigate and maybe write about in my next post.</p>
-
-<p>You can find the full source for this post in my <a href="https://github.com/jagg/vigenere">github account</a>.</p>
-<div class="footnotes">
-<hr/>
-<ol>
-<li id="fn:1">
-<p>This is really an XOR cipher, another substitution cipher with similar security. It&rsquo;s the same concept but it operates with bits instead of characters.<a href="#fnref:1" rev="footnote">&#8617;</a></p></li>
-<li id="fn:2">
-<p>Note that if the key and the text have the same size we only have to do it once, that is called a One Time Pad and if our key was copletely random this cipher would be theoretically unbreakable!<a href="#fnref:2" rev="footnote">&#8617;</a></p></li>
-</ol>
-</div>
-
-</div>
-  
   
 
+<span class="byline author vcard">Posted by <span class="fn">Jose A. Garcia</span></span>
 
-    </article>
+      
+
+
+
+
+<time class='entry-date' datetime='2016-09-14T21:19:45+01:00'><span class='date'><span class='date-month'>Sep</span> <span class='date-day'>14</span><span class='date-suffix'>th</span>, <span class='date-year'>2016</span></span> <span class='time'>9:19 pm</span></time>
+      
+
+<span class="categories">
   
-  <div class="pagination">
+    <a class='category' href='/blog/categories/crypto/'>crypto</a>, <a class='category' href='/blog/categories/rust/'>rust</a>
+  
+</span>
+
+
+    </p>
     
-    <a href="/blog/archives">Blog Archives</a>
-    
-  </div>
+      <div class="sharing">
+  
+  <a href="//twitter.com/share" class="twitter-share-button" data-url="http://jagg.github.io/blog/2016/09/14/breaking-the-vigenere-cipher/" data-via="jagarciagim" data-counturl="http://jagg.github.io/blog/2016/09/14/breaking-the-vigenere-cipher/" >Tweet</a>
+  
+  
+  
 </div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left" href="/blog/2016/09/03/encrypting-like-its-1553/" title="Previous Post: Encrypting like it's 1553">&laquo; Encrypting like it's 1553</a>
+      
+      
+    </p>
+  </footer>
+</article>
+
+</div>
+
 <aside class="sidebar">
   
     
@@ -847,6 +630,7 @@ production work so I still have plenty to investigate and maybe write about in m
 
   
 </aside>
+
 
     </div>
   </div>
